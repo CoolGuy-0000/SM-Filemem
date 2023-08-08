@@ -1,11 +1,7 @@
 #pragma newdecls required
 
 #include <sourcemod>
-
-#define FILEMEM_FORMAT_STRING_LENGTH 256
-#define FILEMEM_FLUSH_BYTES 256
-
-#define FILEMEM_INVALID_ADDRESS -1
+#include <filemem>
 
 public Plugin myinfo =
 {
@@ -406,20 +402,3 @@ void _Filemem_ReadString(File filemem, char[] str, int str_len){
 	}
 }
 
-
-
-/*
-
-
------------ file memory structure -----------
-
-char name[256] 				offs: 0
-int array_length  			offs: 256
-int size (bytes) 			offs: 260
-int value_address 			offs: 264
-int array_address			offs: 268
-int end_address 			offs: 272
-int arrays[array_length]	offs: 276
-char values[size]			offs: 276 + (4 * array_length)
-
-*/
