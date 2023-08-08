@@ -72,7 +72,7 @@ Filemem_SetValue(filemem, _, "Var001", 'C', true, 1);					--> (char)Var001[1] = 
 Filemem_SetValue(filemem, _, "Var001", 3, false, 0, 5, 4, 3, 2, 1)  			--> Var001[5][4][3][2][1] = 3
 
 
-return value: if address cannot found then false, otherwise true
+return value: if address cannot found or filemem is invalid then false, otherwise true
 */
 native bool Filemem_SetValue(Handle filemem=INVALID_HANDLE, int addr=FILEMEM_INVALID_ADDRESS, const char[] name=NULL_STRING, any value, bool IsChar, any ...);
 
