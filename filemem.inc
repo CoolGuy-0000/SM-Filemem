@@ -82,7 +82,7 @@ native bool Filemem_GetArray(Handle filemem=INVALID_HANDLE, int addr=FILEMEM_INV
 
 /*
 
-find address with name
+find address by name
 
 return value: file memory structure header(offs: 0)
 
