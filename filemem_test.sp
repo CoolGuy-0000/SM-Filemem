@@ -33,7 +33,7 @@ public void OnPluginStart(){
 	Filemem_GetValue(g_myfile, VarPointers[1], _, VarValues[1], false); //VarValues[1] = *VarList[1]  
 	Filemem_GetValue(g_myfile, VarPointers[2], _, VarValues[2], false); //VarValues[2] = *VarList[2]  
 	
-	PrintToServer("Var2Values: %d, %d, %d", VarValues[0], VarValues[1], VarValues[2]);
+	PrintToServer("[Filemem]VarValues: %d, %d, %d", VarValues[0], VarValues[1], VarValues[2]);
 	
 }
 
