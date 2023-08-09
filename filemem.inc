@@ -73,8 +73,6 @@ methodmap Filemem < Handle
 
 }
 
-native void OnFilememDestroyed();
-
 public SharedPlugin __pl_Filemem =
 {
 	name = "filemem",
