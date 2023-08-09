@@ -8,12 +8,14 @@ public Plugin myinfo =
 	name = "filemem",
 	author = "CoolGuy-0000",
 	description = "",
-	version = "1.0",
+	version = "1.1",
 	url = "https://github.com/CoolGuy-0000"
 };
 
 
 StringMap g_strmap;
+
+
 
 public void OnNotifyPluginUnloaded(Handle plugin){
 	char szPluginIndex[25];
@@ -31,21 +33,24 @@ public void OnPluginStart(){
 }
 public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max){
 
-	CreateNative("Filemem_Create", Native_Filemem_Create);
-	CreateNative("Filemem_CreateValue", Native_Filemem_CreateValue);
-	CreateNative("Filemem_SetValue", Native_Filemem_SetValue);
-	CreateNative("Filemem_GetValue", Native_Filemem_GetValue);
-	CreateNative("Filemem_SetArray", Native_Filemem_SetArray);
-	CreateNative("Filemem_GetArray", Native_Filemem_GetArray);
-	CreateNative("Filemem_FindAddr", Native_Filemem_FindAddr);
+	CreateNative("Filemem.Filemem", Native_Filemem_Filemem);
+	CreateNative("Filemem.CreateValue", Native_Filemem_CreateValue);
+	CreateNative("Filemem.FindAddr", Native_Filemem_FindAddr);
+	
+	CreateNative("FMS.FMS", Native_FMS_FMS);
+	CreateNative("FMS.Set", Native_FMS_Set);
+	CreateNative("FMS.Get", Native_FMS_Get);
+	CreateNative("FMS.SetArray", Native_FMS_SetArray);
+	CreateNative("FMS.GetArray", Native_FMS_GetArray);
+	CreateNative("FMS.SetString", Native_FMS_SetString);
+	CreateNative("FMS.GetString", Native_FMS_GetString);
+	CreateNative("FMS.MemSet", Native_FMS_MemSet);
 	return APLRes_Success;
+	
 }
 
-//Handle Filemem_Create();
-public any Native_Filemem_Create(Handle plugin, int num_params){
-
+public any Native_Filemem_Filemem(Handle plugin, int num_params){
 	File filemem = GetPluginFilemem(plugin);
-	
 	if(filemem)return INVALID_HANDLE;
 	
 	char plugin_name[PLATFORM_MAX_PATH];
@@ -63,31 +68,27 @@ public any Native_Filemem_Create(Handle plugin, int num_params){
 	IntToString(view_as<int>(plugin), szPluginIndex, sizeof(szPluginIndex));
 	
 	g_strmap.SetValue(szPluginIndex, filemem, true);
+	
 	return filemem;
 }
-
-//bool Filemem_CreateValue(Handle filemem=INVALID_HANDLE, const char[] name, int& addr, any ...);
 public any Native_Filemem_CreateValue(Handle plugin, int num_params){
 	
 	File filemem = GetNativeCell(1);
 	
-	if(filemem == INVALID_HANDLE){
-		filemem = GetPluginFilemem(plugin);
-		if(!filemem)return false;
-	}
-	
 	filemem.Seek(0, SEEK_END);
 	
 	int addr;
-	addr = filemem.Position;
-	SetNativeCellRef(3, addr);
+	FMS _fms;
 	
+	addr = filemem.Position;
+	_fms = view_as<FMS>(addr);
+
 	char name[FILEMEM_FORMAT_STRING_LENGTH];
 	GetNativeString(2, name, sizeof(name));
 	
 	_Filemem_WriteString(filemem, name, sizeof(name));
 	
-	int array_len = num_params-3;
+	int array_len = num_params-2;
 	
 	filemem.WriteInt32(array_len); //array_length
 	
@@ -107,14 +108,16 @@ public any Native_Filemem_CreateValue(Handle plugin, int num_params){
 	
 	int size = 1;
 	
-	for(int param = 4; param <= num_params; param++){
-		if((param % (FILEMEM_FLUSH_BYTES/4) ) == 0)filemem.Flush();
-		
-		int array_value = GetNativeCellRef(param);
-		filemem.WriteInt32(array_value);
-		size *= array_value;
+	int[] array = new int[array_len];
+
+	for(int param = 3; param <= num_params; param++){
+		array[param-3] = GetNativeCellRef(param);
+		size *= array[param-3];
 	}
-	filemem.Flush();
+	
+	ReverseArray(array, array_len);
+	
+	_Filemem_WriteArray(filemem, array, array_len);
 	
 	value_address = filemem.Position;
 	
@@ -136,140 +139,8 @@ public any Native_Filemem_CreateValue(Handle plugin, int num_params){
 	
 	filemem.Flush();
 	
-	return true;
+	return _fms;
 }
-//bool Filemem_SetValue(Handle filemem=INVALID_HANDLE, int addr=FILEMEM_INVALID_ADDRESS, const char[] name=NULL_STRING, any value, bool IsChar, any ...);
-public any Native_Filemem_SetValue(Handle plugin, int num_params){
-	File filemem = GetNativeCell(1);
-	
-	if(filemem == INVALID_HANDLE){
-		filemem = GetPluginFilemem(plugin);
-		if(!filemem)return false;
-	}
-	
-	int addr;
-	addr = GetNativeCell(2);
-	
-	char name[FILEMEM_FORMAT_STRING_LENGTH];
-	GetNativeString(3, name, sizeof(name));
-		
-	if(!_Filemem_SeekValueStartAddr(filemem, addr, name, 6, num_params))return false;
-
-	any value;
-	value = GetNativeCell(4);
-	
-	bool IsChar;
-	IsChar = GetNativeCell(5);
-	
-	if(IsChar)filemem.WriteInt8(value);
-	else filemem.WriteInt32(value);
-	
-	filemem.Flush();
-	
-	return true;
-}
-//bool Filemem_GetValue(Handle filemem=INVALID_HANDLE, int addr=FILEMEM_INVALID_ADDRESS, const char[] name=NULL_STRING, any& value, bool IsChar, any ...);
-public any Native_Filemem_GetValue(Handle plugin, int num_params){
-	File filemem = GetNativeCell(1);
-	
-	if(filemem == INVALID_HANDLE){
-		filemem = GetPluginFilemem(plugin);
-		if(!filemem)return false;
-	}
-	
-	int addr;
-	addr = GetNativeCell(2);
-	
-	char name[FILEMEM_FORMAT_STRING_LENGTH];
-	GetNativeString(3, name, sizeof(name));
-	
-	if(!_Filemem_SeekValueStartAddr(filemem, addr, name, 6, num_params))return false;
-	
-	bool IsChar;
-	IsChar = GetNativeCell(5);
-	
-	any result;
-	
-	if(IsChar)filemem.ReadInt8(result);
-	else filemem.ReadInt32(result);
-
-	SetNativeCellRef(4, result);
-	
-	return true;
-}
-//bool Filemem_SetArray(Handle filemem=INVALID_HANDLE, int addr=FILEMEM_INVALID_ADDRESS, const char[] name=NULL_STRING, int array_len, any[] value, bool IsString, any ...);
-public any Native_Filemem_SetArray(Handle plugin, int num_params){
-	File filemem = GetNativeCell(1);
-	
-	if(filemem == INVALID_HANDLE){
-		filemem = GetPluginFilemem(plugin);
-		if(!filemem)return false;
-	}
-	
-	int addr;
-	addr = GetNativeCell(2);
-	
-	char name[FILEMEM_FORMAT_STRING_LENGTH];
-	GetNativeString(3, name, sizeof(name));
-	
-	if(!_Filemem_SeekValueStartAddr(filemem, addr, name, 7, num_params))return false;
-	
-	int array_len;
-	array_len = GetNativeCell(4);
-	
-	bool IsString;
-	IsString = GetNativeCell(6);
-	
-	if(IsString){
-		char[] array = new char[array_len];
-		GetNativeString(5, array, array_len);
-		_Filemem_WriteString(filemem, array, array_len);
-	}
-	else{
-		int[] array = new int[array_len];
-		GetNativeArray(5, array, array_len);
-		_Filemem_WriteArray(filemem, array, array_len);
-	}
-
-	return true;
-}
-//bool Filemem_GetArray(Handle filemem=INVALID_HANDLE, int addr=FILEMEM_INVALID_ADDRESS, const char[] name=NULL_STRING, int array_len, any[] value, bool IsString, any ...);
-public any Native_Filemem_GetArray(Handle plugin, int num_params){
-	File filemem = GetNativeCell(1);
-	
-	if(filemem == INVALID_HANDLE){
-		filemem = GetPluginFilemem(plugin);
-		if(!filemem)return false;
-	}
-	
-	int addr;
-	addr = GetNativeCell(2);
-	
-	char name[FILEMEM_FORMAT_STRING_LENGTH];
-	GetNativeString(3, name, sizeof(name));
-	
-	if(!_Filemem_SeekValueStartAddr(filemem, addr, name, 7, num_params))return false;
-	
-	int array_len;
-	array_len = GetNativeCell(4);
-	
-	bool IsString;
-	IsString = GetNativeCell(6);
-
-	if(IsString){
-		char[] array = new char[array_len];
-		_Filemem_ReadString(filemem, array, array_len);
-		SetNativeString(5, array, array_len);
-	}
-	else{
-		int[] array = new int[array_len];
-		filemem.Read(array, array_len, 4);
-		SetNativeArray(5, array, array_len);
-	}
-	
-	return true;
-}
-//int Filemem_FindAddr(Handle filemem=INVALID_HANDLE, const char[] name);
 public any Native_Filemem_FindAddr(Handle plugin, int num_params){
 	File filemem = GetNativeCell(1);
 	
@@ -282,6 +153,151 @@ public any Native_Filemem_FindAddr(Handle plugin, int num_params){
 	GetNativeString(2, name, sizeof(name));
 	
 	return _Filemem_FindValue(filemem, name);
+}
+
+public int Native_FMS_FMS(Handle plugin, int num_params){
+	return GetNativeCell(1);
+}
+public any Native_FMS_Set(Handle plugin, int num_params){
+	File filemem = GetPluginFilemem(plugin);
+	if(filemem == INVALID_HANDLE)SetFailState("[Filemem]memory is INVALID_HANDLE!");
+	
+	int addr = GetNativeCell(1);
+
+	
+	if(!_Filemem_SeekValueStartAddr(filemem, addr, NULL_STRING, 4, num_params))return false;
+
+	any value = GetNativeCell(2);
+	
+	NumberType type = GetNativeCell(3);
+	
+	switch(type){
+		case NumberType_Int8:filemem.WriteInt8(value);
+		case NumberType_Int16:filemem.WriteInt16(value);
+		case NumberType_Int32:filemem.WriteInt32(value);
+	}
+	
+	filemem.Flush();
+	
+	return true;
+}
+public any Native_FMS_Get(Handle plugin, int num_params){
+	File filemem = GetPluginFilemem(plugin);
+	if(filemem == INVALID_HANDLE)SetFailState("[Filemem]memory is INVALID_HANDLE!");
+	
+	int addr = GetNativeCell(1);
+
+	if(!_Filemem_SeekValueStartAddr(filemem, addr, NULL_STRING, 4, num_params))return false;
+	
+	NumberType type = GetNativeCell(3);
+	
+	any result;
+	
+	switch(type){
+		case NumberType_Int8:filemem.ReadInt8(result);
+		case NumberType_Int16:filemem.ReadInt16(result);
+		case NumberType_Int32:filemem.ReadInt32(result);
+	}
+
+	SetNativeCellRef(2, result);
+	
+	return true;
+}
+public any Native_FMS_SetArray(Handle plugin, int num_params){
+
+	File filemem = GetPluginFilemem(plugin);
+	if(filemem == INVALID_HANDLE)SetFailState("[Filemem]memory is INVALID_HANDLE!");
+	
+	int addr = GetNativeCell(1);
+	
+	if(!_Filemem_SeekValueStartAddr(filemem, addr, NULL_STRING, 4, num_params))return false;
+	
+	int array_len = GetNativeCell(3);
+	
+	any[] array = new any[array_len];
+	GetNativeArray(2, array, array_len);
+
+	_Filemem_WriteArray(filemem, array, array_len);
+	
+	return true;
+}
+public any Native_FMS_GetArray(Handle plugin, int num_params){
+
+	File filemem = GetPluginFilemem(plugin);
+	if(filemem == INVALID_HANDLE)SetFailState("[Filemem]memory is INVALID_HANDLE!");
+	
+	int addr = GetNativeCell(1);
+
+	if(!_Filemem_SeekValueStartAddr(filemem, addr, NULL_STRING, 4, num_params))return false;
+	
+	int array_len = GetNativeCell(3);
+	
+	any[] array = new any[array_len];
+	filemem.Read(array, array_len, 4);
+	
+	SetNativeArray(2, array, array_len);
+	
+	return true;
+}
+public any Native_FMS_SetString(Handle plugin, int num_params){
+	File filemem = GetPluginFilemem(plugin);
+	if(filemem == INVALID_HANDLE)SetFailState("[Filemem]memory is INVALID_HANDLE!");
+	
+	int addr = GetNativeCell(1);
+	
+	if(!_Filemem_SeekValueStartAddr(filemem, addr, NULL_STRING, 4, num_params))return false;
+	
+	int str_len = GetNativeCell(3);
+
+	char[] str = new char[str_len];
+	GetNativeString(2, str, str_len);
+	
+	_Filemem_WriteString(filemem, str, str_len);
+	
+	return true;
+}
+public any Native_FMS_GetString(Handle plugin, int num_params){
+	File filemem = GetPluginFilemem(plugin);
+	if(filemem == INVALID_HANDLE)SetFailState("[Filemem]memory is INVALID_HANDLE!");
+	
+	int addr = GetNativeCell(1);
+	if(!_Filemem_SeekValueStartAddr(filemem, addr, NULL_STRING, 4, num_params))return false;
+	
+	int str_len = GetNativeCell(3);
+	
+	char[] str = new char[str_len];
+	_Filemem_ReadString(filemem, str, str_len);
+	
+	SetNativeString(2, str, str_len);
+	
+	return true;
+}
+public any Native_FMS_MemSet(Handle plugin, int num_params){
+
+	File filemem = GetPluginFilemem(plugin);
+	if(filemem == INVALID_HANDLE)SetFailState("[Filemem]memory is INVALID_HANDLE!");
+	
+	int addr = GetNativeCell(1);
+	int value = GetNativeCell(2);
+	
+	
+	int value_address;
+	int end_address;
+	
+	filemem.Seek(addr+264, SEEK_SET);
+	filemem.ReadInt32(value_address);
+	filemem.Seek(addr+272, SEEK_SET);
+	filemem.ReadInt32(end_address);
+	
+	filemem.Seek(value_address, SEEK_SET);
+	
+	for(int i = value_address; i <= end_address; i++){
+		if((i % FILEMEM_FLUSH_BYTES) == 0)filemem.Flush();
+		filemem.WriteInt8(value);
+	}
+	
+	filemem.Flush();
+	return 0;
 }
 
 File GetPluginFilemem(Handle plugin){
@@ -363,6 +379,7 @@ bool _Filemem_SeekValueStartAddr(File filemem, int addr, const char[] name, int 
 			array[array_count] = GetNativeCellRef(param);
 			array_count++;
 		}
+		ReverseArray(array, array_count);
 	}
 	
 	int offset;
@@ -377,6 +394,15 @@ bool _Filemem_SeekValueStartAddr(File filemem, int addr, const char[] name, int 
 	return true;
 }
 
+void ReverseArray(int[] array, int array_count){
+	int[] _array = new int[array_count];
+	int i2;
+	for(int i = array_count-1; i >= 0; i--){
+		_array[i2] = array[i];
+		i2++;
+	}
+	for(int i = 0; i < array_count; i++)array[i] = _array[i];
+}
 
 void _Filemem_WriteString(File filemem, const char[] str, int count){
 	for(int i = 0; i < count; i++){
@@ -390,6 +416,7 @@ void _Filemem_WriteArray(File filemem, any[] array, int count){
 		if((i % (FILEMEM_FLUSH_BYTES/4)) == 0)filemem.Flush();
 		filemem.WriteInt32(array[i]);
 	}
+	
 	filemem.Flush();
 }
 
