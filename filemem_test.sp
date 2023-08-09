@@ -37,10 +37,10 @@ void GetSet_Test(){
 	PrintToServer("[Filemem]Test #Normal - %d", value);
 }
 void Pointer_Test(){
-	g_Pointer001.Set(g_Var[0], _, 1, 0);
-	g_Pointer001.Set(g_Var[1], _, 2, 0);
-	g_Pointer001.Set(g_Var[2], _, 3, 0);
-	g_Pointer001.Set(g_Var[3], _, 4, 0);
+	g_Pointer001.Set(g_Var[0], _, 0, 0);
+	g_Pointer001.Set(g_Var[1], _, 1, 0);
+	g_Pointer001.Set(g_Var[2], _, 2, 0);
+	g_Pointer001.Set(g_Var[3], _, 3, 0);
 	
 	FMS random_var;
 	g_Pointer001.Get(random_var, _, 0, GetRandomInt(0, 3));
