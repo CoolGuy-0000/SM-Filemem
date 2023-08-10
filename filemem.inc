@@ -63,11 +63,11 @@ methodmap Filemem < Handle
 		const char[] name	-> name of file memory structure
 		any ...				-> array or size
 		
-		Filemem.CreateValue("Var001", addr, 4); 						--> char Var001[4] 				--> int Var001
-		Filemem.CreateValue("Var001", addr, 1); 						--> char Var001[1]
-		Filemem.CreateValue("Var001", addr, 123, 4); 						--> char Var001[123][4] 			--> int Var001[123]
-		Filemem.CreateValue("Var001", addr, 5, 4, 3, 2, 4); 					--> char Var001[5][4][3][2][4] 			--> int Var001[5][4][3][2]
-		Filemem.CreateValue("Var001", addr, 256); 						--> char Var001[256]
+		Filemem.CreateValue("Var001", 4); 						--> char Var001[4] 				--> int Var001
+		Filemem.CreateValue("Var001", 1); 						--> char Var001[1]
+		Filemem.CreateValue("Var001", 123, 4); 						--> char Var001[123][4] 			--> int Var001[123]
+		Filemem.CreateValue("Var001", 5, 4, 3, 2, 4); 					--> char Var001[5][4][3][2][4] 			--> int Var001[5][4][3][2]
+		Filemem.CreateValue("Var001", 256); 						--> char Var001[256]
 	*/
 	public native FMS CreateValue(const char[] name, any ...);
 	
