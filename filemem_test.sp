@@ -117,5 +117,5 @@ public void OnPluginStart(){
 	String_Test();
 	MemSet_Test();
 	
-	g_flm.Close(); //CloseHandle(g_flm); DO NOT CALL CLOSE HANDLE!!
+	g_flm.Close();
 }
