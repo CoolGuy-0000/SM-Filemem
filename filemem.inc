@@ -53,9 +53,6 @@ methodmap Filemem < Handle
 {
 
 	/*
-		creates filemem handle and 
-		register handle into filemem's stringmap
-
 		YOU MUST CALL IT ONCE EACH EVERY PLUGINS!
 		
 		return value: filemem handle
