@@ -13,29 +13,23 @@ public Plugin myinfo =
 };
 
 
-StringMap g_strmap;
-
-
+File g_FMSListFile;
 
 public void OnNotifyPluginUnloaded(Handle plugin){
-	char szPluginIndex[25];
-	File filemem;
-	IntToString(view_as<int>(plugin), szPluginIndex, sizeof(szPluginIndex));
-	
-	if(g_strmap.GetValue(szPluginIndex, filemem)){
-		CloseHandle(filemem);
-		g_strmap.Remove(szPluginIndex);
-	}
+	List_DetachFromPlugin(plugin);
 }
 
 public void OnPluginStart(){
-	g_strmap = CreateTrie();
+	g_FMSListFile = OpenFile("addons/sourcemod/data/fms_list.list", "w+");
+	if(!g_FMSListFile)SetFailState("[Filemem]critical error!, can not create list file!");
+	List_WriteDefault();
 }
 public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max){
 
 	CreateNative("Filemem.Filemem", Native_Filemem_Filemem);
 	CreateNative("Filemem.CreateValue", Native_Filemem_CreateValue);
 	CreateNative("Filemem.FindAddr", Native_Filemem_FindAddr);
+	CreateNative("Filemem.Close", Native_Filemem_Close);
 	
 	CreateNative("FMS.FMS", Native_FMS_FMS);
 	CreateNative("FMS.Set", Native_FMS_Set);
@@ -45,31 +39,23 @@ public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max
 	CreateNative("FMS.SetString", Native_FMS_SetString);
 	CreateNative("FMS.GetString", Native_FMS_GetString);
 	CreateNative("FMS.MemSet", Native_FMS_MemSet);
+	CreateNative("FMS.GetName", Native_FMS_GetName);
+	CreateNative("FMS.GetArrayLength", Native_FMS_GetArrayLength);
+	CreateNative("FMS.GetSize", Native_FMS_GetSize);
+	CreateNative("FMS.GetArrayInfo", Native_FMS_GetArrayInfo);
+	
+	CreateNative("Filemem_GetList", Native_Filemem_GetList);
+	
 	return APLRes_Success;
 	
 }
 
 public any Native_Filemem_Filemem(Handle plugin, int num_params){
-	File filemem = GetPluginFilemem(plugin);
-	if(filemem)return INVALID_HANDLE;
 	
-	char plugin_name[PLATFORM_MAX_PATH];
-	
-	GetPluginFilename(plugin, plugin_name, sizeof(plugin_name));
-	Format(plugin_name, sizeof(plugin_name), "addons/sourcemod/data/%s.fms", plugin_name);
-	
-	filemem = OpenFile(plugin_name, "w+");
-	if(!filemem){
-		SetFailState("[Filemem]cannot open file -> %s", plugin_name);
-		return INVALID_HANDLE;
-	}
-	
-	char szPluginIndex[25];
-	IntToString(view_as<int>(plugin), szPluginIndex, sizeof(szPluginIndex));
-	
-	g_strmap.SetValue(szPluginIndex, filemem, true);
-	
-	return filemem;
+	char name[PLATFORM_MAX_PATH];
+	GetNativeString(1, name, sizeof(name));
+
+	return _CreateFilemem(name);
 }
 public any Native_Filemem_CreateValue(Handle plugin, int num_params){
 	
@@ -81,7 +67,8 @@ public any Native_Filemem_CreateValue(Handle plugin, int num_params){
 	FMS _fms;
 	
 	addr = filemem.Position;
-	_fms = view_as<FMS>(addr);
+	_fms = view_as<FMS>(List_RegisterFMS(plugin, filemem, addr));
+	
 
 	char name[FILEMEM_FORMAT_STRING_LENGTH];
 	GetNativeString(2, name, sizeof(name));
@@ -100,6 +87,7 @@ public any Native_Filemem_CreateValue(Handle plugin, int num_params){
 	filemem.WriteInt32(0); //value_address
 	filemem.WriteInt32(0); //array_address
 	filemem.WriteInt32(0); //end_address
+	filemem.WriteInt32(view_as<int>(_fms)); //list_address
 	filemem.Flush();
 	
 	int array_address, value_address, end_address;
@@ -144,27 +132,33 @@ public any Native_Filemem_CreateValue(Handle plugin, int num_params){
 public any Native_Filemem_FindAddr(Handle plugin, int num_params){
 	File filemem = GetNativeCell(1);
 	
-	if(filemem == INVALID_HANDLE){
-		filemem = GetPluginFilemem(plugin);
-		if(!filemem)return false;
-	}
-	
 	char name[FILEMEM_FORMAT_STRING_LENGTH];
 	GetNativeString(2, name, sizeof(name));
 	
 	return _Filemem_FindValue(filemem, name);
 }
+public any Native_Filemem_Close(Handle plugin, int num_params){
+	File filemem = GetNativeCell(1);
+	List_DetachFromFilemem(filemem);
+	return 0;
+}
+
+
 
 public int Native_FMS_FMS(Handle plugin, int num_params){
 	return GetNativeCell(1);
 }
 public any Native_FMS_Set(Handle plugin, int num_params){
-	File filemem = GetPluginFilemem(plugin);
-	if(filemem == INVALID_HANDLE)SetFailState("[Filemem]memory is INVALID_HANDLE!");
-	
-	int addr = GetNativeCell(1);
 
+	int list[3];
+	List_Get(list, GetNativeCell(1));
 	
+	File filemem = view_as<File>(list[0]);
+	int addr = list[2];
+
+	if(filemem == INVALID_HANDLE)SetFailState("[Filemem]memory is INVALID_HANDLE!");
+
+
 	if(!_Filemem_SeekValueStartAddr(filemem, addr, NULL_STRING, 4, num_params))return false;
 
 	any value = GetNativeCell(2);
@@ -182,10 +176,15 @@ public any Native_FMS_Set(Handle plugin, int num_params){
 	return true;
 }
 public any Native_FMS_Get(Handle plugin, int num_params){
-	File filemem = GetPluginFilemem(plugin);
-	if(filemem == INVALID_HANDLE)SetFailState("[Filemem]memory is INVALID_HANDLE!");
+
+	int list[3];
+	List_Get(list, GetNativeCell(1));
 	
-	int addr = GetNativeCell(1);
+	File filemem = view_as<File>(list[0]);
+	int addr = list[2];
+
+	if(filemem == INVALID_HANDLE)SetFailState("[Filemem]memory is INVALID_HANDLE!");
+
 
 	if(!_Filemem_SeekValueStartAddr(filemem, addr, NULL_STRING, 4, num_params))return false;
 	
@@ -205,11 +204,14 @@ public any Native_FMS_Get(Handle plugin, int num_params){
 }
 public any Native_FMS_SetArray(Handle plugin, int num_params){
 
-	File filemem = GetPluginFilemem(plugin);
+	int list[3];
+	List_Get(list, GetNativeCell(1));
+	
+	File filemem = view_as<File>(list[0]);
+	int addr = list[2];
+	
 	if(filemem == INVALID_HANDLE)SetFailState("[Filemem]memory is INVALID_HANDLE!");
-	
-	int addr = GetNativeCell(1);
-	
+
 	if(!_Filemem_SeekValueStartAddr(filemem, addr, NULL_STRING, 4, num_params))return false;
 	
 	int array_len = GetNativeCell(3);
@@ -223,10 +225,13 @@ public any Native_FMS_SetArray(Handle plugin, int num_params){
 }
 public any Native_FMS_GetArray(Handle plugin, int num_params){
 
-	File filemem = GetPluginFilemem(plugin);
-	if(filemem == INVALID_HANDLE)SetFailState("[Filemem]memory is INVALID_HANDLE!");
+	int list[3];
+	List_Get(list, GetNativeCell(1));
 	
-	int addr = GetNativeCell(1);
+	File filemem = view_as<File>(list[0]);
+	int addr = list[2];
+	
+	if(filemem == INVALID_HANDLE)SetFailState("[Filemem]memory is INVALID_HANDLE!");
 
 	if(!_Filemem_SeekValueStartAddr(filemem, addr, NULL_STRING, 4, num_params))return false;
 	
@@ -240,10 +245,14 @@ public any Native_FMS_GetArray(Handle plugin, int num_params){
 	return true;
 }
 public any Native_FMS_SetString(Handle plugin, int num_params){
-	File filemem = GetPluginFilemem(plugin);
-	if(filemem == INVALID_HANDLE)SetFailState("[Filemem]memory is INVALID_HANDLE!");
 	
-	int addr = GetNativeCell(1);
+	int list[3];
+	List_Get(list, GetNativeCell(1));
+	
+	File filemem = view_as<File>(list[0]);
+	int addr = list[2];
+	
+	if(filemem == INVALID_HANDLE)SetFailState("[Filemem]memory is INVALID_HANDLE!");
 	
 	if(!_Filemem_SeekValueStartAddr(filemem, addr, NULL_STRING, 4, num_params))return false;
 	
@@ -257,10 +266,15 @@ public any Native_FMS_SetString(Handle plugin, int num_params){
 	return true;
 }
 public any Native_FMS_GetString(Handle plugin, int num_params){
-	File filemem = GetPluginFilemem(plugin);
-	if(filemem == INVALID_HANDLE)SetFailState("[Filemem]memory is INVALID_HANDLE!");
+
+	int list[3];
+	List_Get(list, GetNativeCell(1));
 	
-	int addr = GetNativeCell(1);
+	File filemem = view_as<File>(list[0]);
+	int addr = list[2];
+	
+	if(filemem == INVALID_HANDLE)SetFailState("[Filemem]memory is INVALID_HANDLE!");
+
 	if(!_Filemem_SeekValueStartAddr(filemem, addr, NULL_STRING, 4, num_params))return false;
 	
 	int str_len = GetNativeCell(3);
@@ -274,10 +288,13 @@ public any Native_FMS_GetString(Handle plugin, int num_params){
 }
 public any Native_FMS_MemSet(Handle plugin, int num_params){
 
-	File filemem = GetPluginFilemem(plugin);
-	if(filemem == INVALID_HANDLE)SetFailState("[Filemem]memory is INVALID_HANDLE!");
+	int list[3];
+	List_Get(list, GetNativeCell(1));
 	
-	int addr = GetNativeCell(1);
+	File filemem = view_as<File>(list[0]);
+	int addr = list[2];
+	if(filemem == INVALID_HANDLE)SetFailState("[Filemem]memory is INVALID_HANDLE!");
+
 	int value = GetNativeCell(2);
 	
 	
@@ -299,14 +316,169 @@ public any Native_FMS_MemSet(Handle plugin, int num_params){
 	filemem.Flush();
 	return 0;
 }
+public any Native_FMS_GetName(Handle plugin, int num_params){
+	
+	int list[3];
+	List_Get(list, GetNativeCell(1));
+	
+	File filemem = view_as<File>(list[0]);
+	int addr = list[2];
+	
+	if(filemem == INVALID_HANDLE)SetFailState("[Filemem]memory is INVALID_HANDLE!");
 
-File GetPluginFilemem(Handle plugin){
-	char szPluginIndex[25];
-	IntToString(view_as<int>(plugin), szPluginIndex, sizeof(szPluginIndex));
+	int str_len = GetNativeCell(3);
+	if(str_len > FILEMEM_FORMAT_STRING_LENGTH)str_len = FILEMEM_FORMAT_STRING_LENGTH;
+	
+	char[] str = new char[str_len];
+	
+	filemem.Seek(addr, SEEK_SET);
+	filemem.ReadString(str, str_len, str_len);
+	
+	SetNativeString(2, str, str_len);
+	return true;
+}
+public any Native_FMS_GetArrayLength(Handle plugin, int num_params){
+	
+	int list[3];
+	List_Get(list, GetNativeCell(1));
+	
+	File filemem = view_as<File>(list[0]);
+	int addr = list[2];
+	
+	if(filemem == INVALID_HANDLE)SetFailState("[Filemem]memory is INVALID_HANDLE!");
 
-	File filemem;
-	g_strmap.GetValue(szPluginIndex, filemem);
+	int array_length;
+	
+	filemem.Seek(addr+256, SEEK_SET);
+	filemem.ReadInt32(array_length);
+	
+	SetNativeCellRef(2, array_length);
+	return true;
+}
+public any Native_FMS_GetSize(Handle plugin, int num_params){
+	
+	int list[3];
+	List_Get(list, GetNativeCell(1));
+	
+	File filemem = view_as<File>(list[0]);
+	int addr = list[2];
+	
+	if(filemem == INVALID_HANDLE)SetFailState("[Filemem]memory is INVALID_HANDLE!");
+	
+	int size;
+	
+	filemem.Seek(addr+260, SEEK_SET);
+	filemem.ReadInt32(size);
+	
+	SetNativeCellRef(2, size);
+	return true;
+}
+public any Native_FMS_GetArrayInfo(Handle plugin, int num_params){
+	
+	int list[3];
+	List_Get(list, GetNativeCell(1));
+	
+	File filemem = view_as<File>(list[0]);
+	int addr = list[2];
+	
+	if(filemem == INVALID_HANDLE)SetFailState("[Filemem]memory is INVALID_HANDLE!");
+	
+	int array_len = GetNativeCell(3);
+	int[] array = new int[array_len];
+	
+	int array_address;
+	
+	filemem.Seek(addr+268, SEEK_SET);
+	filemem.ReadInt32(array_address);
+	
+	filemem.Seek(array_address, SEEK_SET);
+	filemem.Read(array, array_len, 4);
+	
+	ReverseArray(array, array_len);
+	
+	SetNativeArray(2, array, array_len);
+	
+	return true;
+}
+public any Native_Filemem_GetList(Handle plugin, int num_params){
+	return g_FMSListFile;
+}
+
+File _CreateFilemem(const char[] name){
+	char fms_name[PLATFORM_MAX_PATH];
+	Format(fms_name, sizeof(fms_name), "addons/sourcemod/data/%s.fms", name);
+		
+	File filemem = OpenFile(fms_name, "w+");
+	
+	if(!filemem){
+		SetFailState("[Filemem]cannot open file -> %s", fms_name);
+		return view_as<File>(INVALID_HANDLE);
+	}
+	
 	return filemem;
+}
+
+void List_WriteDefault(){
+	g_FMSListFile.WriteInt32(view_as<int>(INVALID_HANDLE)); //owner
+	g_FMSListFile.WriteInt32(view_as<int>(INVALID_HANDLE)); //owner_plugin
+	g_FMSListFile.WriteInt32(FILEMEM_INVALID_ADDRESS); //FMS_address
+	g_FMSListFile.Flush();
+}
+
+int List_GetLastIdAddr(){
+	g_FMSListFile.Seek(0, SEEK_SET);
+
+	int info[3];
+	
+	while(g_FMSListFile.Read(info, sizeof(info), 4))
+		if(info[0] == view_as<int>(INVALID_HANDLE) || info[1] == view_as<int>(INVALID_HANDLE))return g_FMSListFile.Position-12;
+	
+	return g_FMSListFile.Position;
+}
+int List_RegisterFMS(Handle plugin, File filemem, int addr){
+	int last_addr = List_GetLastIdAddr();
+	g_FMSListFile.Seek(last_addr, SEEK_SET);
+	g_FMSListFile.WriteInt32(view_as<int>(filemem));
+	g_FMSListFile.WriteInt32(view_as<int>(plugin));
+	g_FMSListFile.WriteInt32(addr);
+	g_FMSListFile.Flush();
+	return last_addr;
+}
+void List_DetachFromPlugin(Handle plugin){
+	
+	int info[3];
+	
+	g_FMSListFile.Seek(0, SEEK_SET);
+	
+	while(g_FMSListFile.Read(info, sizeof(info), 4)){
+		if(info[1] == view_as<int>(plugin)){
+			info[0] = view_as<int>(INVALID_HANDLE);
+			info[1] = view_as<int>(INVALID_HANDLE);
+			g_FMSListFile.Seek(g_FMSListFile.Position-12, SEEK_SET);
+			g_FMSListFile.Write(info, sizeof(info), 4);
+			g_FMSListFile.Flush();
+		}
+	}
+	
+}
+void List_DetachFromFilemem(File filemem){
+	int info[3];
+	
+	g_FMSListFile.Seek(0, SEEK_SET);
+	
+	while(g_FMSListFile.Read(info, sizeof(info), 4)){
+		if(info[0] == view_as<int>(filemem)){
+			info[0] = view_as<int>(INVALID_HANDLE);
+			info[1] = view_as<int>(INVALID_HANDLE);
+			g_FMSListFile.Seek(g_FMSListFile.Position-12, SEEK_SET);
+			g_FMSListFile.Write(info, sizeof(info), 4);
+			g_FMSListFile.Flush();
+		}
+	}
+}
+void List_Get(int info[3], int addr){
+	g_FMSListFile.Seek(addr, SEEK_SET);
+	g_FMSListFile.Read(info, sizeof(info), 4);
 }
 
 int _Filemem_FindValue(File filemem, const char[] name){
@@ -318,7 +490,8 @@ int _Filemem_FindValue(File filemem, const char[] name){
 	
 	while(filemem.ReadString(target_name, sizeof(target_name), sizeof(target_name))){
 		if(StrEqual(name, target_name)){
-			filemem.Seek(pos, SEEK_SET);
+			filemem.Seek(20, SEEK_CUR);
+			filemem.ReadInt32(pos);
 			return pos;
 		}
 		

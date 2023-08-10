@@ -34,7 +34,10 @@ void GetSet_Test(){
 	int value;
 	g_Var[0].Get(value);
 	
-	PrintToServer("[Filemem]Test #Normal - %d", value);
+	char var_name[30];
+	g_Var[0].GetName(var_name, sizeof(var_name));
+	
+	PrintToServer("[Filemem]%s - %d", var_name, value);
 }
 void Pointer_Test(){
 	g_Pointer001.Set(g_Var[0], _, 0, 0);
@@ -43,12 +46,14 @@ void Pointer_Test(){
 	g_Pointer001.Set(g_Var[3], _, 3, 0);
 	
 	FMS random_var;
-	g_Pointer001.Get(random_var, _, 0, GetRandomInt(0, 3));
+	g_Pointer001.Get(random_var, _, GetRandomInt(0, 3), 0);
 	
 	int value;
 	random_var.Get(value);
 	
-	PrintToServer("[Filemem]Test #Pointer - %d", value);
+	char var_name[30];
+	random_var.GetName(var_name, sizeof(var_name));
+	PrintToServer("[Filemem]%s - %d", var_name, value);
 }
 void Array_Test(){
 
@@ -67,7 +72,16 @@ void Array_Test(){
 	array1[3] += array2[3];
 	array1[4] += array2[4];
 	
-	PrintToServer("[Filemem]Test #Array - %d, %d, %d, %d, %d", array1[0], array1[1], array1[2], array1[3], array1[4]); 
+	int arraylen;
+	g_Array001.GetArrayLength(arraylen);
+	
+	int size;
+	g_Array001.GetSize(size)
+	
+	int arrayinfo[2];
+	g_Array001.GetArrayInfo(arrayinfo, sizeof(arrayinfo));
+	
+	PrintToServer("[Filemem]#Array(arraylen: %d, size: %d) - %d, %d, %d, %d, %d\n%d, %d", arraylen, size, array1[0], array1[1], array1[2], array1[3], array1[4], arrayinfo[0], arrayinfo[1]); 
 	
 }
 void String_Test(){
@@ -81,7 +95,7 @@ void String_Test(){
 	
 	StrCat(str1, sizeof(str1), str2);
 	
-	PrintToServer("[Filemem]Test #String - %s", str1);
+	PrintToServer("[Filemem]#String - %s", str1);
 }
 void MemSet_Test(){
 	g_Array001.MemSet(0);
@@ -89,11 +103,11 @@ void MemSet_Test(){
 	int value;
 	g_Array001.Get(value, _, 3, 0);
 	
-	PrintToServer("[Filemem]Test #MemSet - %d", value);
+	PrintToServer("[Filemem]#MemSet - %d", value);
 }
 
 public void OnPluginStart(){
-	g_flm = new Filemem();
+	g_flm = new Filemem("filemem_test");
 	
 	CreateVariables();
 	
@@ -103,5 +117,5 @@ public void OnPluginStart(){
 	String_Test();
 	MemSet_Test();
 	
-	//CloseHandle(g_flm); DO NOT CLOSE HANDLE!!
+	g_flm.Close(); //CloseHandle(g_flm); DO NOT CALL CLOSE HANDLE!!
 }
