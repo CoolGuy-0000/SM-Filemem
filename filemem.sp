@@ -8,7 +8,7 @@ public Plugin myinfo =
 	name = "filemem",
 	author = "CoolGuy-0000",
 	description = "",
-	version = "1.1",
+	version = "1.2",
 	url = "https://github.com/CoolGuy-0000"
 };
 
