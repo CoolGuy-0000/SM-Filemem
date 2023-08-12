@@ -308,7 +308,7 @@ public any Native_FMS_MemSet(Handle plugin, int num_params){
 	
 	filemem.Seek(value_address, SEEK_SET);
 	
-	for(int i = value_address; i <= end_address; i++){
+	for(int i = value_address; i < end_address; i++){
 		if((i % FILEMEM_FLUSH_BYTES) == 0)filemem.Flush();
 		filemem.WriteInt8(value);
 	}
