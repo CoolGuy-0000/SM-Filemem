@@ -140,6 +140,7 @@ public any Native_Filemem_FindAddr(Handle plugin, int num_params){
 public any Native_Filemem_Close(Handle plugin, int num_params){
 	File filemem = GetNativeCell(1);
 	List_DetachFromFilemem(filemem);
+	CloseHandle(filemem);
 	return 0;
 }
 
