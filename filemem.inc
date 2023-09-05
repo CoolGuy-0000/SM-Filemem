@@ -53,8 +53,6 @@ methodmap Filemem < Handle
 {
 
 	/*
-		YOU MUST CALL IT ONCE EACH EVERY PLUGINS!
-		
 		return value: filemem handle
 	*/
 	public native Filemem(const char[] name);
