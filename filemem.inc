@@ -14,14 +14,14 @@
 
 ----------- file memory structure -----------
 
-char name[FILEMEM_FORMAT_STRING_LENGTH=256] 							offs: 0
+char name[FILEMEM_FORMAT_STRING_LENGTH=256] 			offs: 0
 int array_length  										offs: 256
-int size 											offs: 260
+int size 												offs: 260
 int value_address 										offs: 264
 int array_address										offs: 268
 int end_address 										offs: 272
 int list_address										offs: 276
-int arrays[array_length]									offs: 280
+int arrays[array_length]								offs: 280
 char values[size]										offs: 280 + (4 * array_length)
 
 
@@ -34,11 +34,11 @@ char values[size]										offs: 280 + (4 * array_length)
 methodmap FMS
 {
 	public native FMS(int addr);
-	public native bool Set(any value, NumberType type=NumberType_Int32, any ...);
+	public native bool Set(const any value, NumberType type=NumberType_Int32, any ...);
 	public native bool Get(any& value, NumberType type=NumberType_Int32, any ...);
-	public native bool SetArray(any[] value, int array_len, any ...);
+	public native bool SetArray(const any[] value, int array_len, any ...);
 	public native bool GetArray(any[] value, int array_len, any ...);
-	public native bool SetString(char[] str, int str_len, any ...);
+	public native bool SetString(const char[] str, any ...);
 	public native bool GetString(char[] str, int str_len, any ...);
 	public native bool MemSet(char value);
 	
@@ -47,7 +47,6 @@ methodmap FMS
 	public native bool GetSize(int& size);
 	public native bool GetArrayInfo(int[] array, int array_len);
 }
-
 
 methodmap Filemem < Handle
 {
@@ -61,11 +60,11 @@ methodmap Filemem < Handle
 		const char[] name	-> name of file memory structure
 		any ...				-> array or size
 		
-		Filemem.CreateValue("Var001", 4); 						--> char Var001[4] 				--> int Var001
+		Filemem.CreateValue("Var001", 4); 						--> char Var001[4] 						--> int Var001
 		Filemem.CreateValue("Var001", 1); 						--> char Var001[1]
-		Filemem.CreateValue("Var001", 123, 4); 						--> char Var001[123][4] 			--> int Var001[123]
-		Filemem.CreateValue("Var001", 5, 4, 3, 2, 4); 					--> char Var001[5][4][3][2][4] 			--> int Var001[5][4][3][2]
-		Filemem.CreateValue("Var001", 256); 						--> char Var001[256]
+		Filemem.CreateValue("Var001", 123, 4); 					--> char Var001[123][4] 				--> int Var001[123]
+		Filemem.CreateValue("Var001", 5, 4, 3, 2, 4); 			--> char Var001[5][4][3][2][4] 			--> int Var001[5][4][3][2]
+		Filemem.CreateValue("Var001", 256); 					--> char Var001[256]
 	*/
 	public native FMS CreateValue(const char[] name, any ...);
 	
@@ -73,6 +72,23 @@ methodmap Filemem < Handle
 	
 	public native void Close();
 	
+}
+
+enum FMSListInfo
+{
+	FMSListInfo_FILEMEM = 0,
+	FMSListInfo_PLUGIN,
+	FMSListInfo_ADDR,
+	FMSListInfo_LASTID
+}
+
+methodmap FMSList
+{
+	public native FMSList(); //this is useless, don't use it!, same as Filemem_GetList()
+	public native void GetInfo(FMS fms, int info[FMSListInfo_LASTID]);
+	public native void Attach(const int info[FMSListInfo_LASTID]);
+	public native void Detach(Filemem filemem);
+	public native void DetachAllFilemems(Handle plugin=INVALID_HANDLE);
 }
 
 native File Filemem_GetList();
